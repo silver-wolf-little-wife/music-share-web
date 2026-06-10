@@ -164,6 +164,24 @@ router.get('/music/list', apiAuthMiddleware, async (req, res) => {
     }
 });
 
+// 获取音乐统计信息
+router.get('/music/stats', apiAuthMiddleware, async (req, res) => {
+    try {
+        await initDatabase();
+        const stats = await database.getMusicStats();
+        res.json({
+            success: true,
+            stats: stats
+        });
+    } catch (error) {
+        console.error('获取音乐统计失败:', error);
+        res.status(500).json({
+            success: false,
+            message: '获取音乐统计失败'
+        });
+    }
+});
+
 // 获取音乐播放URL
 router.get('/music/play/:id', apiAuthMiddleware, async (req, res) => {
     try {

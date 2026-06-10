@@ -271,6 +271,8 @@ function loadMusicList() {
                 displayMusicList(musicList);
                 displayRecentMusic(musicList.slice(0, 6));
                 updatePlaylist();
+                // 加载统计信息
+                fetchMusicStats();
             } else {
                 // 显示错误信息
                 const allMusicEl = document.getElementById('all-music');
@@ -1022,6 +1024,48 @@ function formatFileSize(bytes) {
     const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(1024));
     return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
+}
+
+// 格式化总时长（秒 → X小时X分 或 分:秒）
+function formatTotalDuration(seconds) {
+    if (!seconds || seconds <= 0) return '0:00';
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    if (h > 0) return h + 'h ' + m + 'm';
+    const s = Math.floor(seconds % 60);
+    return m + ':' + s.toString().padStart(2, '0');
+}
+
+// 获取并显示音乐统计信息
+function fetchMusicStats() {
+    fetch('/api/music/stats')
+        .then(response => {
+            if (!response.ok) throw new Error('网络错误');
+            return response.json();
+        })
+        .then(data => {
+            if (data.success && data.stats) {
+                const stats = data.stats;
+                document.getElementById('stat-total-count').textContent = stats.totalCount;
+                document.getElementById('stat-total-size').textContent = formatFileSize(stats.totalSize);
+                document.getElementById('stat-total-duration').textContent = formatTotalDuration(stats.totalDuration);
+
+                // 格式分布
+                const formatListEl = document.getElementById('stat-format-list');
+                formatListEl.innerHTML = '';
+                if (stats.formatBreakdown && stats.formatBreakdown.length > 0) {
+                    stats.formatBreakdown.forEach(item => {
+                        const div = document.createElement('div');
+                        div.className = 'stat-item';
+                        div.innerHTML = `<i class="fas fa-file-audio"></i><span>${escapeHtml(item.format.toUpperCase())}: <strong>${item.count}</strong></span>`;
+                        formatListEl.appendChild(div);
+                    });
+                }
+            }
+        })
+        .catch(error => {
+            console.error('加载音乐统计失败:', error);
+        });
 }
 
 // 扫描功能相关变量

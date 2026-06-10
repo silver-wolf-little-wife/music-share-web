@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const { extractMetadata, extractCover, extractLyrics, isAudioFile } = require('./metadata');
+const logger = require('./logger');
 
 /**
  * 智能音乐文件扫描器
@@ -41,10 +42,21 @@ class MusicScanner {
             const results = await this.performIncrementalScan();
             this.scanStatus = 'completed';
             this.scanResults = results;
+
+            // 持久化扫描错误到日志文件
+            if (results.errors && results.errors.length > 0) {
+                logger.writeScanErrors(results.errors);
+            }
+
             return results;
         } catch (error) {
             console.error('扫描失败:', error);
             this.scanStatus = 'error';
+            // 顶层扫描失败也记录到日志
+            logger.writeErrorLog({
+                type: 'scan_error',
+                message: error.message
+            });
             throw error;
         } finally {
             this.isScanning = false;

@@ -16,6 +16,9 @@ const apiRoutes = require('./src/routes/api');
 const { authMiddleware } = require('./src/middleware/auth');
 const cspMiddleware = require('./src/middleware/csp');
 
+// 导入日志工具
+const logger = require('./src/utils/logger');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 const isDevelopment = process.env.NODE_ENV === 'development';
@@ -154,11 +157,15 @@ async function scanMusicFilesOnStartup() {
     
     if (scanResults.errors.length > 0) {
       console.warn(`⚠️  扫描过程中发现 ${scanResults.errors.length} 个错误`);
+      // 持久化启动扫描的错误到日志文件
+      logger.writeScanErrors(scanResults.errors);
     }
     
   } catch (error) {
     console.error('❌ 音乐文件扫描失败:', error.message);
     console.log('⚠️  扫描失败不影响服务器正常启动');
+    // 顶层扫描失败也写入日志
+    logger.writeErrorLog({ type: 'scan_error', message: error.message });
   }
 }
 

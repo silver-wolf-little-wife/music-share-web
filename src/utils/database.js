@@ -264,6 +264,48 @@ class Database {
         });
     }
 
+    // 获取音乐统计信息（总数、总大小、总时长、格式分布）
+    getMusicStats() {
+        return new Promise((resolve, reject) => {
+            const aggregateSql = `
+                SELECT COUNT(*) as count, 
+                       COALESCE(SUM(size), 0) as totalSize,
+                       COALESCE(SUM(duration), 0) as totalDuration 
+                FROM music
+            `;
+            const formatSql = `
+                SELECT format, COUNT(*) as count 
+                FROM music 
+                WHERE format IS NOT NULL 
+                GROUP BY format 
+                ORDER BY count DESC
+            `;
+
+            this.db.get(aggregateSql, [], (err, aggregateRow) => {
+                if (err) {
+                    console.error('获取音乐统计失败:', err.message);
+                    reject(err);
+                    return;
+                }
+
+                this.db.all(formatSql, [], (err2, formatRows) => {
+                    if (err2) {
+                        console.error('获取格式分布失败:', err2.message);
+                        reject(err2);
+                        return;
+                    }
+
+                    resolve({
+                        totalCount: aggregateRow.count,
+                        totalSize: aggregateRow.totalSize,
+                        totalDuration: Math.round(aggregateRow.totalDuration || 0),
+                        formatBreakdown: formatRows
+                    });
+                });
+            });
+        });
+    }
+
     // 根据文件名获取音乐记录
     getMusicByFilename(filename) {
         return new Promise((resolve, reject) => {

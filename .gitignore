@@ -15,6 +15,7 @@ desktop.ini
 # Logs
 *.log
 npm-debug.log*
+logs/
 
 # IDE
 .idea/
