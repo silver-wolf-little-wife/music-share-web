@@ -9,7 +9,7 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
   # 阿里云容器镜像服务（国内加速）
-  ACR_REGISTRY: registry.cn-hangzhou.aliyuncs.com
+  ACR_REGISTRY: crpi-1txugqp0dkatkk3t.cn-shanghai.personal.cr.aliyuncs.com
   ACR_NAMESPACE: chengxiyue
 
 jobs:
