@@ -88,6 +88,10 @@ function normalizeLyricsValue(value) {
         }).join('\n').trim();
         return text || null;
     }
+    // USLT 单条 { descriptor, text }
+    if (value && typeof value === 'object' && value.text) {
+        return String(value.text).trim() || null;
+    }
     // 字符串直接返回
     if (typeof value === 'string') {
         return value.trim() || null;
@@ -100,7 +104,7 @@ async function extractLyrics(filePath) {
         const metadata = await mm.parseFile(filePath);
         let lyrics = null;
 
-        // 尝试从 native Vorbis LYRICS 字段提取（FLAC 等格式）
+        // 1. 尝试从 native Vorbis LYRICS 字段提取（FLAC/OGG 等格式）
         if (metadata.native && metadata.native.vorbis) {
             const lyricsField = metadata.native.vorbis.find(field => field.id === 'LYRICS');
             if (lyricsField) {
@@ -108,12 +112,23 @@ async function extractLyrics(filePath) {
             }
         }
 
-        // 尝试从 ID3v2.3 USLT 帧提取
+        // 2. 尝试从 native ID3v2 USLT 帧提取（MP3 等格式，music-metadata v7 不会把它映射到 common）
+        if (!lyrics && metadata.native) {
+            const id3v2 = metadata.native['ID3v23'] || metadata.native['ID3v24'] || metadata.native['ID3v22'];
+            if (id3v2) {
+                const uslt = id3v2.find(tag => tag.id === 'USLT');
+                if (uslt) {
+                    lyrics = normalizeLyricsValue(uslt.value);
+                }
+            }
+        }
+
+        // 3. 尝试从 common.uslt 提取（music-metadata 后续版本支持）
         if (!lyrics && metadata.common.uslt) {
             lyrics = normalizeLyricsValue(metadata.common.uslt);
         }
 
-        // 尝试从 common.lyrics 提取
+        // 4. 尝试从 common.lyrics 提取
         if (!lyrics) {
             lyrics = normalizeLyricsValue(metadata.common.lyrics);
         }
