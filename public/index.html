@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>音乐分享</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="/css/style.css" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- 侧边栏 -->
+        <div class="sidebar">
+            <div class="logo">
+                <i class="fas fa-music"></i>
+                <span>音乐分享</span>
+            </div>
+            
+            <div class="user-info">
+                <img src="https://picsum.photos/seed/user123/40/40.jpg" alt="用户头像" class="user-avatar">
+                <div class="user-details">
+                    <div class="username" id="username">用户</div>
+                    <a href="/auth/logout" class="logout-link">
+                        <i class="fas fa-sign-out-alt"></i> 退出
+                    </a>
+                </div>
+            </div>
+            
+            <nav class="nav-menu">
+                <a href="#" class="nav-item active" data-page="home">
+                    <i class="fas fa-home"></i>
+                    <span>首页</span>
+                </a>
+                <a href="#" class="nav-item" data-page="search">
+                    <i class="fas fa-search"></i>
+                    <span>搜索</span>
+                </a>
+                <a href="#" class="nav-item" data-page="upload">
+                    <i class="fas fa-upload"></i>
+                    <span>上传音乐</span>
+                </a>
+            </nav>
+        </div>
+        
+        <!-- 主内容区 -->
+        <div class="main-content">
+            <!-- 右下角功能图标 -->
+            <div class="floating-icons">
+                <button class="floating-icon" id="grid-view-btn" title="网格视图">
+                    <i class="fas fa-th"></i>
+                </button>
+                <button class="floating-icon" id="lang-toggle-btn" title="切换语言">
+                    <span>中A</span>
+                </button>
+            </div>
+            
+            <!-- 首页内容 -->
+            <div id="home-page" class="page-content active">
+                <div class="content-header">
+                    <h2>发现音乐</h2>
+                    <div class="search-bar">
+                        <input type="text" id="search-input" placeholder="搜索歌曲、艺术家...">
+                        <button id="search-btn">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="music-categories">
+                    <div class="category-section">
+                        <h3>最近播放</h3>
+                        <div class="music-grid" id="recent-music">
+                            <!-- 最近播放的音乐将在这里显示 -->
+                        </div>
+                    </div>
+                    
+                    <div class="category-section">
+                        <h3>全部音乐</h3>
+                        <div class="music-list" id="all-music">
+                            <!-- 所有音乐将在这里显示 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 搜索页面 -->
+            <div id="search-page" class="page-content">
+                <div class="content-header">
+                    <h2>搜索音乐</h2>
+                </div>
+                <div class="search-results" id="search-results">
+                    <!-- 搜索结果将在这里显示 -->
+                </div>
+            </div>
+            
+            <!-- 上传页面 -->
+            <div id="upload-page" class="page-content">
+                <div class="content-header">
+                    <h2>上传音乐</h2>
+                </div>
+                
+                <!-- 重新扫描区域 -->
+                <div class="scan-area">
+                    <div class="scan-header">
+                        <h3>音乐库管理</h3>
+                        <p>重新扫描音乐目录以更新数据库中的音乐信息</p>
+                    </div>
+                    
+                    <div class="scan-controls">
+                        <button class="btn btn-primary" id="scan-btn">
+                            <i class="fas fa-sync-alt"></i> 重新扫描
+                        </button>
+                        <button class="btn btn-secondary" id="scan-status-btn">
+                            <i class="fas fa-info-circle"></i> 查看状态
+                        </button>
+                        <button class="btn btn-danger" id="scan-stop-btn" style="display: none;">
+                            <i class="fas fa-stop"></i> 停止扫描
+                        </button>
+                    </div>
+                    
+                    <!-- 扫描进度 -->
+                    <div class="scan-progress" id="scan-progress" style="display: none;">
+                        <div class="progress">
+                            <div class="progress-bar" id="scan-progress-bar" role="progressbar" style="width: 0%">
+                                0%
+                            </div>
+                        </div>
+                        <div class="scan-status-text" id="scan-status-text">准备扫描...</div>
+                    </div>
+                    
+                    <!-- 扫描结果 -->
+                    <div class="scan-results" id="scan-results" style="display: none;">
+                        <h4>扫描结果</h4>
+                        <div class="result-stats">
+                            <div class="stat-item">
+                                <i class="fas fa-plus text-success"></i>
+                                <span>新增: <strong id="result-added">0</strong></span>
+                            </div>
+                            <div class="stat-item">
+                                <i class="fas fa-edit text-warning"></i>
+                                <span>更新: <strong id="result-updated">0</strong></span>
+                            </div>
+                            <div class="stat-item">
+                                <i class="fas fa-trash text-danger"></i>
+                                <span>删除: <strong id="result-deleted">0</strong></span>
+                            </div>
+                            <div class="stat-item">
+                                <i class="fas fa-exclamation-triangle text-info"></i>
+                                <span>错误: <strong id="result-errors">0</strong></span>
+                            </div>
+                        </div>
+                        <div class="scan-time">
+                            耗时: <strong id="scan-duration">0</strong> 秒
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="upload-area">
+                    <div class="upload-box" id="upload-box">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <p>拖拽音乐文件到这里或点击选择文件</p>
+                        <p class="text-muted">支持 MP3、FLAC 格式</p>
+                        <input type="file" id="file-input" multiple accept=".mp3,.flac">
+                    </div>
+                    <div class="upload-list" id="upload-list">
+                        <!-- 上传列表将在这里显示 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 音乐播放器 -->
+    <div class="music-player" id="music-player">
+        <div class="player-info">
+            <div class="album-cover-wrapper" id="current-cover-wrapper">
+                <img src="https://picsum.photos/seed/default/60/60.jpg" alt="专辑封面" id="current-cover" class="album-cover">
+            </div>
+            <div class="track-info">
+                <div class="track-name" id="track-name">未播放</div>
+                <div class="track-artist" id="track-artist">--</div>
+            </div>
+        </div>
+        
+        <div class="player-controls">
+            <button class="control-btn" id="prev-btn">
+                <i class="fas fa-step-backward"></i>
+            </button>
+            <button class="control-btn play-btn" id="play-btn">
+                <i class="fas fa-play"></i>
+            </button>
+            <button class="control-btn" id="next-btn">
+                <i class="fas fa-step-forward"></i>
+            </button>
+        </div>
+        
+        <div class="player-progress">
+            <span class="time current-time" id="current-time">0:00</span>
+            <div class="progress-bar">
+                <div class="progress" id="progress"></div>
+            </div>
+            <span class="time total-time" id="total-time">0:00</span>
+        </div>
+        
+        <div class="player-extras">
+            
+            <button class="control-btn" id="playlist-btn">
+                <i class="fas fa-list"></i>
+            </button>
+            <button class="control-btn" id="lyrics-btn">
+                <i class="fas fa-align-left"></i>
+            </button>
+        </div>
+    </div>
+    
+    <!-- 歌词面板 -->
+    <div class="lyrics-panel" id="lyrics-panel">
+        <div class="lyrics-header">
+            <h3>歌词</h3>
+            <button class="close-btn" id="close-lyrics">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="lyrics-content" id="lyrics-content">
+            <p class="no-lyrics">暂无歌词</p>
+        </div>
+    </div>
+    
+    <!-- 播放列表 -->
+    <div class="playlist-panel" id="playlist-panel">
+        <div class="playlist-header">
+            <h3>播放列表</h3>
+            <button class="close-btn" id="close-playlist">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="playlist-content" id="playlist-content">
+            <!-- 播放列表将在这里显示 -->
+        </div>
+    </div>
+    
+    <!-- 播放详情页 -->
+    <div class="player-detail-page" id="player-detail-page">
+        <div class="player-detail-background" id="player-detail-background"></div>
+        <div class="player-detail-overlay"></div>
+        
+        <div class="player-detail-container">
+            <!-- 顶部导航栏 -->
+            <div class="player-detail-header">
+                <button class="back-btn" id="player-detail-back-btn">
+                    <i class="fas fa-chevron-down"></i>
+                </button>
+                
+            </div>
+            
+            <!-- 主要内容区 -->
+            <div class="player-detail-content">
+                <!-- 左侧专辑封面 -->
+                <div class="album-section">
+                    <div class="album-container" id="player-detail-album-container">
+                        <div class="album-art" id="player-detail-album-art">
+                            <img src="https://picsum.photos/seed/default/300/300.jpg" alt="专辑封面" id="player-detail-cover">
+                            <div class="album-needle" id="player-detail-needle">
+                                <div class="needle-arm"></div>
+                                <div class="needle-base"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 右侧歌词区 -->
+                <div class="lyrics-section">
+                    <div class="song-info">
+                        <h2 class="track-title" id="player-detail-title">未播放</h2>
+                        <p class="track-artist" id="player-detail-artist">--</p>
+                    </div>
+                    
+                    <div class="lyrics-container" id="player-detail-lyrics-container">
+                        <p class="no-lyrics">暂无歌词</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 底部播放控制 -->
+            <div class="player-detail-controls">
+                <!-- 进度条 -->
+                <div class="progress-section">
+                    <div class="progress-bar-container">
+                        <div class="progress-bar">
+                            <div class="progress" id="player-detail-progress"></div>
+                        </div>
+                        <div class="progress-time">
+                            <span class="current-time" id="player-detail-current-time">0:00</span>
+                            <span class="total-time" id="player-detail-total-time">0:00</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 控制按钮 -->
+                <div class="control-buttons">
+                    
+                    <button class="control-btn" id="player-detail-shuffle-btn">
+                        <i class="fas fa-random"></i>
+                    </button>
+                    <button class="control-btn" id="player-detail-prev-btn">
+                        <i class="fas fa-step-backward"></i>
+                    </button>
+                    <button class="control-btn play-btn-large" id="player-detail-play-btn">
+                        <i class="fas fa-play"></i>
+                    </button>
+                    <button class="control-btn" id="player-detail-next-btn">
+                        <i class="fas fa-step-forward"></i>
+                    </button>
+                    <button class="control-btn" id="player-detail-repeat-btn">
+                        <i class="fas fa-redo"></i>
+                    </button>
+                    <button class="control-btn" id="player-detail-playlist-btn">
+                        <i class="fas fa-list"></i>
+                    </button>
+                    
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/js/app.js"></script>
+</body>
+</html>

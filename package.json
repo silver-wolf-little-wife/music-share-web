@@ -1,0 +1,36 @@
+{
+  "name": "music-share-web",
+  "version": "1.0.0",
+  "description": "局域网音乐分享平台",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "nodemon app.js",
+    "test": "node -e \"console.log('No tests specified yet')\""
+  },
+  "keywords": [
+    "music",
+    "sharing",
+    "lan",
+    "audio"
+  ],
+  "author": "",
+  "license": "MIT",
+  "type": "commonjs",
+  "dependencies": {
+    "body-parser": "^2.2.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "ejs": "^3.1.10",
+    "express": "^5.2.1",
+    "express-session": "^1.18.2",
+    "multer": "^2.0.2",
+    "music-metadata": "^11.10.4",
+    "serve-favicon": "^2.5.1",
+    "sqlite3": "^6.0.1",
+    "uuid": "^13.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.11"
+  }
+}
