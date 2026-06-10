@@ -25,7 +25,7 @@
     "express": "^5.2.1",
     "express-session": "^1.18.2",
     "multer": "^2.0.2",
-    "music-metadata": "^11.10.4",
+    "music-metadata": "^7.14.0",
     "serve-favicon": "^2.5.1",
     "sqlite3": "^6.0.1",
     "uuid": "^11.0.0"
