@@ -2,8 +2,8 @@ const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs');
 
-// 数据库文件路径
-const DB_PATH = path.join(__dirname, '../../music.db');
+// 数据库文件路径（支持环境变量覆盖，方便 Docker 挂载）
+const DB_PATH = process.env.DB_PATH || path.join(__dirname, '../../music.db');
 
 class Database {
     constructor() {
