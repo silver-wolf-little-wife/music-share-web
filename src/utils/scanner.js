@@ -346,8 +346,8 @@ class MusicScanner {
         // 提取元数据
         const metadata = await extractMetadata(file.fullPath);
         
-        // 提取封面
-        const musicId = path.basename(file.filename, path.extname(file.filename));
+        // 提取封面（使用完整文件名作为 ID，避免同名不同扩展名冲突）
+        const musicId = file.filename;
         const coverPath = await extractCover(file.fullPath, musicId);
         
         // 提取歌词

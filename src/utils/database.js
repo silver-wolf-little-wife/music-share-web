@@ -284,7 +284,7 @@ class Database {
     batchAddMusic(musicArray) {
         return new Promise((resolve, reject) => {
             const stmt = this.db.prepare(`
-                INSERT INTO music (id, filename, title, artist, album, year, genre, duration, bitrate, format, codec, size, cover, lyrics, file_mtime)
+                INSERT OR IGNORE INTO music (id, filename, title, artist, album, year, genre, duration, bitrate, format, codec, size, cover, lyrics, file_mtime)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `);
 
@@ -308,8 +308,9 @@ class Database {
                             stmt.finalize();
                             
                             if (hasError) {
-                                this.db.run('ROLLBACK');
-                                reject(new Error('批量添加过程中发生错误'));
+                                this.db.run('ROLLBACK', () => {
+                                    reject(new Error('批量添加过程中发生错误'));
+                                });
                             } else {
                                 this.db.run('COMMIT', (err) => {
                                     if (err) {
@@ -356,8 +357,9 @@ class Database {
                             stmt.finalize();
                             
                             if (hasError) {
-                                this.db.run('ROLLBACK');
-                                reject(new Error('批量更新过程中发生错误'));
+                                this.db.run('ROLLBACK', () => {
+                                    reject(new Error('批量更新过程中发生错误'));
+                                });
                             } else {
                                 this.db.run('COMMIT', (err) => {
                                     if (err) {
