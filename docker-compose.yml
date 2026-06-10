@@ -1,6 +1,7 @@
 services:
   music-share:
-    image: ghcr.io/silver-wolf-little-wife/music-share-web:latest
+    image: registry.cn-hangzhou.aliyuncs.com/chengxiyue/music-share-web:latest
+    # 备用: ghcr.io/silver-wolf-little-wife/music-share-web:latest
     # 如需本地构建，注释掉上面那行，取消注释下面这行：
     # build: .
     container_name: music-share
