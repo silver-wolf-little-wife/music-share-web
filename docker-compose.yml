@@ -1,6 +1,8 @@
 services:
   music-share:
-    build: .
+    image: ghcr.io/silver-wolf-little-wife/music-share-web:latest
+    # 如需本地构建，注释掉上面那行，取消注释下面这行：
+    # build: .
     container_name: music-share
     restart: unless-stopped
     ports:
