@@ -1,0 +1,18 @@
+services:
+  music-share:
+    build: .
+    container_name: music-share
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./music:/app/music
+      - ./public/covers:/app/public/covers
+      - ./data:/app/data          # SQLite 数据库持久化
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - SESSION_SECRET=change-this-to-a-random-string
+    # 低内存服务器限制
+    mem_limit: 256m
+    memswap_limit: 512m

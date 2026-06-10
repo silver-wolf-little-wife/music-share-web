@@ -1,0 +1,14 @@
+node_modules/
+music/
+public/covers/
+*.db
+.env
+.git/
+.gitignore
+start.bat
+start.ps1
+stop.bat
+stop.ps1
+*.md
+.editorconfig
+nul
