@@ -192,7 +192,7 @@ router.get('/music/play/:id', apiAuthMiddleware, async (req, res) => {
         if (music) {
             res.json({ 
                 success: true, 
-                url: `/music/file/${encodeURIComponent(music.filename)}` 
+                url: `/music/file?name=${encodeURIComponent(music.filename)}` 
             });
         } else {
             res.status(404).json({ 

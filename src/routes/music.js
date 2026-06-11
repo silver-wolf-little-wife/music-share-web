@@ -12,9 +12,13 @@ if (!fs.existsSync(MUSIC_DIR)) {
     fs.mkdirSync(MUSIC_DIR, { recursive: true });
 }
 
-// 获取音乐文件
-router.get('/file/:filename', (req, res) => {
-    const filename = req.params.filename;
+// 获取音乐文件（使用查询参数避免 URL 路径中的编码问题）
+router.get('/file', (req, res) => {
+    const filename = req.query.name;
+    
+    if (!filename) {
+        return res.status(400).json({ success: false, message: '缺少文件名参数' });
+    }
     
     // 安全检查：防止路径遍历攻击
     if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
