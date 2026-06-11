@@ -4,6 +4,9 @@ let musicList = [];
 let currentMusicIndex = 0;
 let isPlaying = false;
 let audio = new Audio();
+let preloadAudio = new Audio();  // 预加载音频
+let preloadedIndex = -1;         // 已预加载的歌曲索引
+let preloadedCover = new Image(); // 预加载封面
 
 // 歌词同步相关变量
 let currentParsedLyrics = null;
@@ -258,6 +261,7 @@ function loadUserInfo() {
 
 // 加载音乐列表
 function loadMusicList() {
+    preloadedIndex = -1;  // 列表刷新后预加载失效
     fetch('/api/music/list')
         .then(response => {
             if (!response.ok) {
@@ -373,46 +377,47 @@ function playMusic(index) {
     currentMusicIndex = index;
     currentMusic = musicList[index];
     
-    // 更新播放器UI
+    // 更新播放器UI（立即响应，不等加载）
     trackNameEl.textContent = currentMusic.title;
     trackArtistEl.textContent = currentMusic.artist;
     
     if (currentMusic.cover) {
-        currentCoverWrapper.innerHTML = `<img src="/api/music/cover/${currentMusic.id}" alt="${currentMusic.title}" class="album-cover">`;
+        currentCoverWrapper.innerHTML = `<img src="/api/music/cover/${currentMusic.id}" alt="${escapeHtml(currentMusic.title)}" class="album-cover">`;
     } else {
         currentCoverWrapper.innerHTML = '<i class="fas fa-music album-cover"></i>';
     }
     
-    // 先停止当前播放
-    audio.pause();
-    audio.currentTime = 0;
+    // 重置歌词状态
+    currentParsedLyrics = null;
+    currentLyricIndex = -1;
     
-    // 加载音频
-    if (!currentMusic.filename) {
-        console.error('缺少文件名:', currentMusic);
-        playNext();
-        return;
+    // 加载音频：如果已预加载，直接交换 audio 元素避免重新下载
+    if (preloadedIndex === index) {
+        const temp = audio;
+        audio = preloadAudio;
+        preloadAudio = temp;
+        preloadedIndex = -1;
+        audio.onloadeddata = null;
+    } else {
+        if (!currentMusic.filename) {
+            console.error('缺少文件名:', currentMusic);
+            playNext();
+            return;
+        }
+        audio.src = `/music/file?name=${encodeURIComponent(currentMusic.filename)}`;
     }
-    audio.src = `/music/file?name=${encodeURIComponent(currentMusic.filename)}`;
-
-    audio.onloadstart = function() {
-        console.log('开始加载音频:', currentMusic.filename);
-    };
     
     // 尝试播放
     audio.play().then(() => {
-        console.log('播放成功:', currentMusic.filename);
         isPlaying = true;
         updatePlayButton();
         updatePlaylistHighlight();
+        // 播放成功后预加载下一首
+        preloadNextSong();
     }).catch(error => {
         console.error('播放失败:', error);
         playNext();
     });
-    
-    // 重置歌词状态
-    currentParsedLyrics = null;
-    currentLyricIndex = -1;
     
     // 更新播放详情页内容（如果打开）
     updatePlayerDetailContent();
@@ -495,6 +500,41 @@ function getRandomIndex() {
     } while (randomIndex === currentMusicIndex && musicList.length > 1);
     
     return randomIndex;
+}
+
+// 获取下一首的索引（用于预加载预测）
+function getNextIndex() {
+    if (musicList.length <= 1) return -1;
+    
+    switch (currentPlayMode) {
+        case PLAY_MODE.SINGLE:
+            return currentMusicIndex;       // 单曲循环，预加载自己
+        case PLAY_MODE.SHUFFLE:
+            return getRandomIndex();        // 随机模式，预加载随机一首
+        case PLAY_MODE.SEQUENCE:
+        case PLAY_MODE.LOOP:
+        default:
+            return (currentMusicIndex + 1) % musicList.length;
+    }
+}
+
+// 预加载下一首歌曲（音轨 + 封面）
+function preloadNextSong() {
+    const nextIndex = getNextIndex();
+    if (nextIndex < 0 || nextIndex === preloadedIndex) return;
+    
+    const nextMusic = musicList[nextIndex];
+    if (!nextMusic || !nextMusic.filename) return;
+    
+    // 预加载音频
+    preloadAudio.src = `/music/file?name=${encodeURIComponent(nextMusic.filename)}`;
+    preloadAudio.load();
+    preloadedIndex = nextIndex;
+    
+    // 预加载封面图片
+    if (nextMusic.cover) {
+        preloadedCover.src = `/api/music/cover/${nextMusic.id}`;
+    }
 }
 
 // 播放上一首
