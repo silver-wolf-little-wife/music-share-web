@@ -728,6 +728,8 @@ function showPlayerDetail() {
     
     // 显示播放详情页
     playerDetailPage.classList.add('show');
+    // 锁定 body 滚动，防止滚轮事件穿透到背景页面
+    document.body.style.overflow = 'hidden';
 }
 
 // 更新唱针状态
@@ -780,6 +782,8 @@ function updatePlayerDetailContent() {
 // 隐藏播放详情页
 function hidePlayerDetail() {
     playerDetailPage.classList.remove('show');
+    // 恢复 body 滚动
+    document.body.style.overflow = '';
 }
 
 // 更新播放详情页播放按钮
