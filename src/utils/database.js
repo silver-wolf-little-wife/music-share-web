@@ -322,7 +322,7 @@ class Database {
         });
     }
 
-    // 批量添加音乐记录
+    // 批量添加音乐记录（使用 INSERT OR IGNORE 逐条插入，避免事务竞态条件）
     batchAddMusic(musicArray) {
         return new Promise((resolve, reject) => {
             const stmt = this.db.prepare(`
@@ -330,41 +330,24 @@ class Database {
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `);
 
-            this.db.serialize(() => {
-                this.db.run('BEGIN TRANSACTION');
-                
-                let completed = 0;
-                let hasError = false;
+            let completed = 0;
+            let errorCount = 0;
 
-                musicArray.forEach(music => {
-                    const { id, filename, title, artist, album, year, genre, duration, bitrate, format, codec, size, cover, lyrics, file_mtime } = music;
+            musicArray.forEach(music => {
+                const { id, filename, title, artist, album, year, genre, duration, bitrate, format, codec, size, cover, lyrics, file_mtime } = music;
+                
+                stmt.run([id, filename, title, artist, album, year, genre, duration, bitrate, format, codec, size, cover, lyrics, file_mtime], (err) => {
+                    if (err) {
+                        console.error('批量添加音乐记录失败:', err.message);
+                        errorCount++;
+                    }
                     
-                    stmt.run([id, filename, title, artist, album, year, genre, duration, bitrate, format, codec, size, cover, lyrics, file_mtime], (err) => {
-                        if (err) {
-                            console.error('批量添加音乐记录失败:', err.message);
-                            hasError = true;
-                        }
-                        
-                        completed++;
-                        if (completed === musicArray.length) {
-                            stmt.finalize();
-                            
-                            if (hasError) {
-                                this.db.run('ROLLBACK', () => {
-                                    reject(new Error('批量添加过程中发生错误'));
-                                });
-                            } else {
-                                this.db.run('COMMIT', (err) => {
-                                    if (err) {
-                                        reject(err);
-                                    } else {
-                                        console.log(`批量添加 ${musicArray.length} 条音乐记录成功`);
-                                        resolve({ addedCount: musicArray.length });
-                                    }
-                                });
-                            }
-                        }
-                    });
+                    completed++;
+                    if (completed === musicArray.length) {
+                        stmt.finalize();
+                        console.log(`批量添加 ${musicArray.length} 条音乐记录完成 (成功: ${musicArray.length - errorCount}, 跳过: ${errorCount})`);
+                        resolve({ addedCount: musicArray.length - errorCount });
+                    }
                 });
             });
         });
@@ -379,41 +362,24 @@ class Database {
                 WHERE id = ?
             `);
 
-            this.db.serialize(() => {
-                this.db.run('BEGIN TRANSACTION');
-                
-                let completed = 0;
-                let hasError = false;
+            let completed = 0;
+            let errorCount = 0;
 
-                updateArray.forEach(music => {
-                    const { id, title, artist, album, year, genre, duration, bitrate, format, codec, size, cover, lyrics, file_mtime } = music;
+            updateArray.forEach(music => {
+                const { id, title, artist, album, year, genre, duration, bitrate, format, codec, size, cover, lyrics, file_mtime } = music;
+                
+                stmt.run([title, artist, album, year, genre, duration, bitrate, format, codec, size, cover, lyrics, file_mtime, id], (err) => {
+                    if (err) {
+                        console.error('批量更新音乐记录失败:', err.message);
+                        errorCount++;
+                    }
                     
-                    stmt.run([title, artist, album, year, genre, duration, bitrate, format, codec, size, cover, lyrics, file_mtime, id], (err) => {
-                        if (err) {
-                            console.error('批量更新音乐记录失败:', err.message);
-                            hasError = true;
-                        }
-                        
-                        completed++;
-                        if (completed === updateArray.length) {
-                            stmt.finalize();
-                            
-                            if (hasError) {
-                                this.db.run('ROLLBACK', () => {
-                                    reject(new Error('批量更新过程中发生错误'));
-                                });
-                            } else {
-                                this.db.run('COMMIT', (err) => {
-                                    if (err) {
-                                        reject(err);
-                                    } else {
-                                        console.log(`批量更新 ${updateArray.length} 条音乐记录成功`);
-                                        resolve({ updatedCount: updateArray.length });
-                                    }
-                                });
-                            }
-                        }
-                    });
+                    completed++;
+                    if (completed === updateArray.length) {
+                        stmt.finalize();
+                        console.log(`批量更新 ${updateArray.length} 条音乐记录完成 (成功: ${updateArray.length - errorCount}, 失败: ${errorCount})`);
+                        resolve({ updatedCount: updateArray.length - errorCount });
+                    }
                 });
             });
         });
