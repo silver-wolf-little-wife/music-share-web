@@ -114,7 +114,7 @@ async function extractLyrics(filePath) {
 
         // 2. 尝试从 native ID3v2 USLT 帧提取（MP3 等格式，music-metadata v7 不会把它映射到 common）
         if (!lyrics && metadata.native) {
-            const id3v2 = metadata.native['ID3v23'] || metadata.native['ID3v24'] || metadata.native['ID3v22'];
+            const id3v2 = metadata.native['ID3v2.3'] || metadata.native['ID3v2.4'] || metadata.native['ID3v2.2'] || metadata.native['ID3v23'] || metadata.native['ID3v24'] || metadata.native['ID3v22'];
             if (id3v2) {
                 const uslt = id3v2.find(tag => tag.id === 'USLT');
                 if (uslt) {
