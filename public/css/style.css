@@ -916,6 +916,8 @@ body {
     padding: 20px;
     position: relative;
     z-index: 10;
+    min-height: 0;
+    overflow: hidden;
 }
 
 /* 左侧专辑区域 */
