@@ -393,7 +393,7 @@ function playMusic(index) {
         playNext();
         return;
     }
-    audio.src = `/music/file/${currentMusic.filename}`;
+    audio.src = `/music/file/${encodeURIComponent(currentMusic.filename)}`;
 
     audio.onloadstart = function() {
         console.log('开始加载音频:', currentMusic.filename);
