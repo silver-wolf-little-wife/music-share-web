@@ -302,7 +302,7 @@ router.post('/music/rescan', apiAuthMiddleware, async (req, res) => {
         }
         
         // 开始扫描
-        const scanPromise = musicScanner.startIncrementalScan((progress) => {
+        const scanPromise = musicScanner.startFullScan((progress) => {
             // 这里可以通过 WebSocket 或其他方式实时推送进度
             console.log(`扫描进度: ${progress.progress}%`);
         });

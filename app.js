@@ -148,8 +148,8 @@ async function scanMusicFilesOnStartup() {
     // 创建扫描器实例
     const scanner = new MusicScanner(database, musicDir, coverDir);
     
-    // 开始增量扫描
-    const scanResults = await scanner.startIncrementalScan((progress) => {
+    // 开始全量扫描
+    const scanResults = await scanner.startFullScan((progress) => {
       // 简单的进度提示
       if (progress.progress % 20 === 0 || progress.progress === 100) {
         console.log(`📊 扫描进度: ${progress.progress}%`);
@@ -161,7 +161,7 @@ async function scanMusicFilesOnStartup() {
     console.log(`📈 扫描统计:`);
     console.log(`   - 新增音乐: ${scanResults.added.length} 首`);
     console.log(`   - 更新音乐: ${scanResults.updated.length} 首`);
-    console.log(`   - 删除音乐: ${scanResults.deleted.length} 首`);
+    console.log(`   - 删除音乐: ${scanResults.deletedCount} 首`);
     console.log(`   - 扫描耗时: ${scanResults.duration}ms`);
     
     if (scanResults.errors.length > 0) {
