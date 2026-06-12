@@ -123,11 +123,12 @@ function initEventListeners() {
         lyricsPanel.classList.remove('show');
     });
     
-    lyricsBtn.addEventListener('click', () => {
+    lyricsBtn.addEventListener('click', async () => {
         lyricsPanel.classList.toggle('show');
         playlistPanel.classList.remove('show');
-        if (currentMusic && currentMusic.lyrics) {
-            displayLyrics(currentMusic.lyrics);
+        if (currentMusic) {
+            const lyrics = await fetchLyricsForCurrentMusic();
+            displayLyrics(lyrics);
         }
     });
     
@@ -275,6 +276,15 @@ function loadMusicList() {
                 displayMusicList(musicList);
                 displayRecentMusic(musicList.slice(0, 6));
                 updatePlaylist();
+                // 预加载第一首歌，提升首播体验
+                if (!currentMusic && musicList.length > 0) {
+                    const firstMusic = musicList[0];
+                    if (firstMusic && firstMusic.filename) {
+                        preloadAudio.src = `/music/file?name=${encodeURIComponent(firstMusic.filename)}`;
+                        preloadAudio.load();
+                        preloadedIndex = 0;
+                    }
+                }
                 // 加载统计信息
                 fetchMusicStats();
             } else {
@@ -699,6 +709,28 @@ function syncLyrics(currentTime) {
 }
 
 // 渲染播放详情页歌词
+// 按需获取歌词（从列表API已移除歌词字段）
+async function fetchLyricsForCurrentMusic() {
+    if (!currentMusic) return null;
+    // 如果已有歌词，直接返回
+    if (currentMusic.lyrics) return currentMusic.lyrics;
+    try {
+        const response = await fetch(`/api/music/lyrics/${currentMusic.id}`);
+        if (response.ok) {
+            const data = await response.json();
+            if (data.success) {
+                // 缓存到列表，避免重复请求
+                musicList[currentMusicIndex].lyrics = data.lyrics;
+                currentMusic.lyrics = data.lyrics;
+                return data.lyrics;
+            }
+        }
+    } catch (error) {
+        console.error('获取歌词失败:', error);
+    }
+    return '';
+}
+
 function displayPlayerDetailLyrics(lyrics) {
     if (!lyrics) {
         playerDetailLyricsContainer.innerHTML = '<p class="no-lyrics">暂无歌词</p>';
@@ -761,10 +793,14 @@ function showPlayerDetail() {
     // 更新唱针状态
     updateNeedleState();
     
-    // 显示歌词
-    if (currentMusic.lyrics) {
-        displayPlayerDetailLyrics(currentMusic.lyrics);
-    }
+    // 显示歌词（按需加载）
+    fetchLyricsForCurrentMusic().then(lyrics => {
+        if (lyrics) {
+            displayPlayerDetailLyrics(lyrics);
+        } else {
+            playerDetailLyricsContainer.innerHTML = '<p class="no-lyrics">暂无歌词</p>';
+        }
+    });
     
     // 显示播放详情页
     playerDetailPage.classList.add('show');
@@ -804,12 +840,14 @@ function updatePlayerDetailContent() {
             playerDetailBackground.style.backgroundImage = `url(${coverUrl})`;
         }
         
-        // 更新歌词
-        if (currentMusic.lyrics) {
-            displayPlayerDetailLyrics(currentMusic.lyrics);
-        } else {
-            playerDetailLyricsContainer.innerHTML = '<p class="no-lyrics">暂无歌词</p>';
-        }
+        // 更新歌词（按需加载）
+        fetchLyricsForCurrentMusic().then(lyrics => {
+            if (lyrics) {
+                displayPlayerDetailLyrics(lyrics);
+            } else {
+                playerDetailLyricsContainer.innerHTML = '<p class="no-lyrics">暂无歌词</p>';
+            }
+        });
         
         // 更新播放按钮状态
         updatePlayerDetailPlayButton();

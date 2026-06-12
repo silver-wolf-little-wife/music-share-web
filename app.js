@@ -3,6 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const cors = require('cors');
+const compression = require('compression');
 const bodyParser = require('body-parser');
 const session = require('express-session');
 const favicon = require('serve-favicon');
@@ -32,6 +33,7 @@ if (isDevelopment) {
 
 // 中间件配置
 app.use(cors());
+app.use(compression());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
