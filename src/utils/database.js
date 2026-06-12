@@ -149,6 +149,22 @@ class Database {
         });
     }
 
+    // 获取所有音乐记录（不含歌词，减少传输量）
+    getAllMusicWithoutLyrics() {
+        return new Promise((resolve, reject) => {
+            const sql = 'SELECT id, filename, title, artist, album, year, genre, duration, bitrate, format, codec, size, cover, file_mtime, upload_time FROM music ORDER BY upload_time DESC';
+            
+            this.db.all(sql, [], (err, rows) => {
+                if (err) {
+                    console.error('获取音乐列表失败:', err.message);
+                    reject(err);
+                } else {
+                    resolve(rows);
+                }
+            });
+        });
+    }
+
     // 获取所有音乐记录
     getAllMusic() {
         return new Promise((resolve, reject) => {
@@ -165,12 +181,12 @@ class Database {
         });
     }
 
-    // 获取所有音乐记录（带缓存）
+    // 获取所有音乐记录（带缓存，不含歌词）
     getAllMusicCached() {
         if (this.musicListCacheValid && this.musicListCache !== null) {
             return Promise.resolve(this.musicListCache);
         }
-        return this.getAllMusic().then(rows => {
+        return this.getAllMusicWithoutLyrics().then(rows => {
             this.musicListCache = rows;
             this.musicListCacheValid = true;
             return rows;

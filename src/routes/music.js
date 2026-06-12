@@ -29,28 +29,58 @@ router.get('/file', (req, res) => {
 
     // 优先从内存缓存获取文件大小，消除同步磁盘 I/O
     let fileSize;
+    let fileMtime;
     const cached = database.getFileMeta(filename);
     if (cached && cached.size) {
         fileSize = cached.size;
+        fileMtime = cached.mtime;
     } else if (fs.existsSync(filePath)) {
         const stat = fs.statSync(filePath);
         fileSize = stat.size;
+        fileMtime = Math.floor(stat.mtimeMs / 1000);
         // 回填缓存
-        database.addFileMeta(filename, { size: fileSize, mtime: Math.floor(stat.mtimeMs / 1000) });
+        database.addFileMeta(filename, { size: fileSize, mtime: fileMtime });
     } else {
         return res.status(404).json({ success: false, message: '文件不存在' });
     }
 
-    const range = req.headers.range;
-    
     // 根据文件扩展名设置正确的Content-Type
     const ext = path.extname(filename).toLowerCase();
-    let contentType = 'audio/mpeg'; // 默认为mp3
+    let contentType = 'audio/mpeg';
     if (ext === '.flac') {
         contentType = 'audio/flac';
     } else if (ext === '.mp3') {
         contentType = 'audio/mpeg';
     }
+
+    // HTTP 缓存：利用已有 mtime 生成 ETag，减少重复播放时的网络传输
+    const etag = `W/"${fileMtime}-${fileSize}"`;
+    const lastModified = new Date(fileMtime * 1000).toUTCString();
+    const cacheControl = 'public, max-age=3600';
+
+    // 检查条件请求头
+    const ifNoneMatch = req.headers['if-none-match'];
+    const ifModifiedSince = req.headers['if-modified-since'];
+
+    if (ifNoneMatch && ifNoneMatch === etag) {
+        res.writeHead(304, {
+            'ETag': etag,
+            'Cache-Control': cacheControl,
+            'Last-Modified': lastModified
+        });
+        return res.end();
+    }
+
+    if (!ifNoneMatch && ifModifiedSince && ifModifiedSince === lastModified) {
+        res.writeHead(304, {
+            'ETag': etag,
+            'Cache-Control': cacheControl,
+            'Last-Modified': lastModified
+        });
+        return res.end();
+    }
+
+    const range = req.headers.range;
     
     if (range) {
         const parts = range.replace(/bytes=/, "").split("-");
@@ -63,6 +93,9 @@ router.get('/file', (req, res) => {
             'Accept-Ranges': 'bytes',
             'Content-Length': chunksize,
             'Content-Type': contentType,
+            'ETag': etag,
+            'Cache-Control': cacheControl,
+            'Last-Modified': lastModified
         };
         res.writeHead(206, head);
         file.pipe(res);
@@ -70,6 +103,9 @@ router.get('/file', (req, res) => {
         const head = {
             'Content-Length': fileSize,
             'Content-Type': contentType,
+            'ETag': etag,
+            'Cache-Control': cacheControl,
+            'Last-Modified': lastModified
         };
         res.writeHead(200, head);
         fs.createReadStream(filePath).pipe(res);

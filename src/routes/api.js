@@ -111,6 +111,32 @@ router.get('/music/play/:id', apiAuthMiddleware, async (req, res) => {
     }
 });
 
+// 获取音乐歌词（按需加载）
+router.get('/music/lyrics/:id', apiAuthMiddleware, async (req, res) => {
+    try {
+        const id = req.params.id;
+        const music = await database.getMusicById(id);
+        
+        if (music) {
+            res.json({
+                success: true,
+                lyrics: music.lyrics || ''
+            });
+        } else {
+            res.status(404).json({
+                success: false,
+                message: '音乐不存在'
+            });
+        }
+    } catch (error) {
+        console.error('获取歌词失败:', error);
+        res.status(500).json({
+            success: false,
+            message: '获取歌词失败'
+        });
+    }
+});
+
 // 获取音乐封面
 router.get('/music/cover/:id', async (req, res) => {
     try {
@@ -126,6 +152,7 @@ router.get('/music/cover/:id', async (req, res) => {
         if (music && music.cover) {
             const coverPath = path.join(__dirname, '../../public', music.cover);
             if (fs.existsSync(coverPath)) {
+                res.set('Cache-Control', 'public, max-age=86400');
                 res.sendFile(coverPath);
                 return;
             }
