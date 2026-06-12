@@ -88,7 +88,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initEventListeners();
     loadMusicList();
     loadUserInfo();
-    setupAudioEvents();
+    setupAudioEvents(audio);
     updatePlayModeButtons();
     initScanFeature();
 });
@@ -215,14 +215,25 @@ if (playerDetailPlaylistBtn) {
 }
 
 // 设置音频事件
-function setupAudioEvents() {
-    audio.addEventListener('timeupdate', updateProgress);
-    audio.addEventListener('loadedmetadata', updateDuration);
-    audio.addEventListener('ended', playNext);
-    audio.addEventListener('error', function() {
-        console.error('音频加载错误');
-        playNext();
-    });
+function setupAudioEvents(audioEl) {
+    audioEl.addEventListener('timeupdate', updateProgress);
+    audioEl.addEventListener('loadedmetadata', updateDuration);
+    audioEl.addEventListener('ended', playNext);
+    audioEl.addEventListener('error', handleAudioError);
+}
+
+// 音频加载错误处理
+function handleAudioError() {
+    console.error('音频加载错误');
+    playNext();
+}
+
+// 移除音频事件监听器
+function teardownAudioEvents(audioEl) {
+    audioEl.removeEventListener('timeupdate', updateProgress);
+    audioEl.removeEventListener('loadedmetadata', updateDuration);
+    audioEl.removeEventListener('ended', playNext);
+    audioEl.removeEventListener('error', handleAudioError);
 }
 
 // 页面切换
@@ -398,6 +409,9 @@ function playMusic(index) {
         preloadAudio = temp;
         preloadedIndex = -1;
         audio.onloadeddata = null;
+        teardownAudioEvents(preloadAudio);
+        setupAudioEvents(audio);
+        updateDuration();
     } else {
         if (!currentMusic.filename) {
             console.error('缺少文件名:', currentMusic);
