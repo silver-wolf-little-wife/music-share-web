@@ -8,6 +8,10 @@ const DB_PATH = process.env.DB_PATH || path.join(__dirname, '../../music.db');
 class Database {
     constructor() {
         this.db = null;
+        // 内存缓存
+        this.musicListCache = null;
+        this.musicListCacheValid = false;
+        this.fileMetaCache = new Map();
     }
 
     // 初始化数据库连接
@@ -19,7 +23,31 @@ class Database {
                     reject(err);
                 } else {
                     console.log('数据库连接成功');
-                    this.createTables().then(resolve).catch(reject);
+                    this.enableWAL()
+                        .then(() => this.createTables())
+                        .then(() => this.checkAndAddFileMtimeColumn())
+                        .then(resolve)
+                        .catch(reject);
+                }
+            });
+        });
+    }
+
+    // 启用 WAL 模式以提升并发读写性能
+    enableWAL() {
+        return new Promise((resolve, reject) => {
+            this.db.run('PRAGMA journal_mode=WAL', (err) => {
+                if (err) {
+                    console.error('启用 WAL 模式失败:', err.message);
+                    reject(err);
+                } else {
+                    console.log('WAL 模式已启用');
+                    this.db.run('PRAGMA synchronous=NORMAL', (err2) => {
+                        if (err2) {
+                            console.warn('设置 synchronous=NORMAL 失败:', err2.message);
+                        }
+                        resolve();
+                    });
                 }
             });
         });
@@ -102,14 +130,14 @@ class Database {
     // 添加音乐记录
     addMusic(musicData) {
         return new Promise((resolve, reject) => {
-            const { id, filename, title, artist, album, year, genre, duration, bitrate, format, codec, size, cover, lyrics } = musicData;
+            const { id, filename, title, artist, album, year, genre, duration, bitrate, format, codec, size, cover, lyrics, file_mtime } = musicData;
             
             const sql = `
-                INSERT INTO music (id, filename, title, artist, album, year, genre, duration, bitrate, format, codec, size, cover, lyrics)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO music (id, filename, title, artist, album, year, genre, duration, bitrate, format, codec, size, cover, lyrics, file_mtime)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `;
 
-            this.db.run(sql, [id, filename, title, artist, album, year, genre, duration, bitrate, format, codec, size, cover, lyrics], function(err) {
+            this.db.run(sql, [id, filename, title, artist, album, year, genre, duration, bitrate, format, codec, size, cover, lyrics, file_mtime || null], function(err) {
                 if (err) {
                     console.error('添加音乐记录失败:', err.message);
                     reject(err);
@@ -135,6 +163,29 @@ class Database {
                 }
             });
         });
+    }
+
+    // 获取所有音乐记录（带缓存）
+    getAllMusicCached() {
+        if (this.musicListCacheValid && this.musicListCache !== null) {
+            return Promise.resolve(this.musicListCache);
+        }
+        return this.getAllMusic().then(rows => {
+            this.musicListCache = rows;
+            this.musicListCacheValid = true;
+            return rows;
+        });
+    }
+
+    // 失效音乐列表缓存（上传/删除/重扫后调用）
+    invalidateMusicListCache() {
+        this.musicListCacheValid = false;
+    }
+
+    // 强制刷新音乐列表缓存（重扫完成后调用）
+    async refreshMusicListCache() {
+        this.musicListCacheValid = false;
+        return this.getAllMusicCached();
     }
 
     // 根据ID获取音乐记录
@@ -448,6 +499,28 @@ class Database {
                 }
             });
         });
+    }
+
+    // === 文件元数据内存缓存（消除 music.js 的同步 I/O）===
+
+    // 整体替换文件元数据缓存
+    setFileMetaCache(map) {
+        this.fileMetaCache = map;
+    }
+
+    // 获取单个文件的元数据（size, mtime）
+    getFileMeta(filename) {
+        return this.fileMetaCache.get(filename) || null;
+    }
+
+    // 单条添加（上传后调用）
+    addFileMeta(filename, meta) {
+        this.fileMetaCache.set(filename, meta);
+    }
+
+    // 单条删除（删除后调用）
+    removeFileMeta(filename) {
+        this.fileMetaCache.delete(filename);
     }
 }
 

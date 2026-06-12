@@ -97,31 +97,40 @@ app.use((err, req, res, next) => {
   }
 });
 
-// 启动服务器
-app.listen(PORT, '0.0.0.0', async () => {
-  console.log(`🎵 音乐分享服务器已启动！`);
-  console.log(`📍 访问地址: http://localhost:${PORT}`);
-  console.log(`🌐 局域网访问地址: http://YOUR_LOCAL_IP:${PORT}`);
-  
-  // 初始化数据库
+// 预初始化：数据库和扫描在监听端口之前完成
+(async function initializeBeforeListen() {
+  const database = require('./src/utils/database');
+  const path = require('path');
+
   try {
-    const database = require('./src/utils/database');
+    // 1. 初始化数据库（连接、建表、file_mtime 兼容、WAL 模式）
     await database.init();
-    console.log(`💾 数据库初始化成功`);
-    
-    // 启动时进行音乐文件扫描
+    console.log('💾 数据库初始化成功');
+
+    // 2. 扫描音乐文件
     await scanMusicFilesOnStartup();
+
+    // 3. 构建文件元数据内存缓存（供 music.js 消除同步 I/O）
+    await buildFileMetaCache(database);
   } catch (error) {
-    console.error(`❌ 数据库初始化失败:`, error.message);
+    console.error('❌ 数据库初始化失败:', error.message);
+    process.exit(1);
   }
-  
-  if (isDevelopment) {
-    console.log(`🔧 开发模式特性:`);
-    console.log(`   - 热重载已启用 (nodemon)`);
-    console.log(`   - 请求日志已开启`);
-    console.log(`   - 详细错误信息已启用`);
-  }
-});
+
+  // 数据库和缓存就绪后，开始监听端口
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🎵 音乐分享服务器已启动！`);
+    console.log(`📍 访问地址: http://localhost:${PORT}`);
+    console.log(`🌐 局域网访问地址: http://YOUR_LOCAL_IP:${PORT}`);
+
+    if (isDevelopment) {
+      console.log('🔧 开发模式特性:');
+      console.log('   - 热重载已启用 (nodemon)');
+      console.log('   - 请求日志已开启');
+      console.log('   - 详细错误信息已启用');
+    }
+  });
+})();
 
 // 服务器启动时扫描音乐文件
 async function scanMusicFilesOnStartup() {
@@ -166,6 +175,24 @@ async function scanMusicFilesOnStartup() {
     console.log('⚠️  扫描失败不影响服务器正常启动');
     // 顶层扫描失败也写入日志
     logger.writeErrorLog({ type: 'scan_error', message: error.message });
+  }
+}
+
+// 构建文件元数据内存缓存（基于数据库记录）
+async function buildFileMetaCache(database) {
+  try {
+    const allMusic = await database.getAllMusic();
+    const metaMap = new Map();
+    for (const music of allMusic) {
+      metaMap.set(music.filename, {
+        size: music.size,
+        mtime: music.file_mtime
+      });
+    }
+    database.setFileMetaCache(metaMap);
+    console.log(`📋 文件元数据缓存已构建 (${metaMap.size} 项)`);
+  } catch (error) {
+    console.warn('⚠️  文件元数据缓存构建失败:', error.message);
   }
 }
 

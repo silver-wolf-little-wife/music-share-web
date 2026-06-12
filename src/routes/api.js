@@ -48,109 +48,13 @@ const upload = multer({
     }
 });
 
-// 数据库初始化状态
-let isDatabaseInitialized = false;
-
 // 全局扫描器实例
 let musicScanner = null;
-
-// 初始化数据库
-async function initDatabase() {
-    if (!isDatabaseInitialized) {
-        try {
-            await database.init();
-            isDatabaseInitialized = true;
-            console.log('数据库初始化完成');
-        } catch (error) {
-            console.error('数据库初始化失败:', error);
-        }
-    }
-}
-
-// 初始化数据库并扫描音乐目录
-async function initializeDatabaseWithMusicFiles() {
-    try {
-        await initDatabase();
-        
-        // 检查数据库是否已有音乐
-        const musicCount = await database.getMusicCount();
-        
-        if (musicCount === 0) {
-            console.log('数据库为空，开始扫描音乐目录...');
-            const files = fs.readdirSync(MUSIC_DIR);
-            
-            for (const file of files) {
-                const filePath = path.join(MUSIC_DIR, file);
-                const stat = fs.statSync(filePath);
-                
-                if (stat.isFile() && (file.endsWith('.mp3') || file.endsWith('.flac'))) {
-                    const id = path.basename(file, path.extname(file));
-                    
-                    // 检查音乐是否已存在
-                    const existingMusic = await database.getMusicById(id);
-                    if (existingMusic) {
-                        continue;
-                    }
-                    
-                    const musicInfo = {
-                        id: id,
-                        filename: file,
-                        title: path.basename(file, path.extname(file)),
-                        artist: '未知艺术家',
-                        album: '未知专辑',
-                        duration: 0,
-                        size: stat.size,
-                        format: path.extname(file).substring(1).toUpperCase(),
-                        bitrate: null,
-                        cover: null,
-                        lyrics: null
-                    };
-                    
-                    // 尝试提取元数据
-                    try {
-                        const metadata = await extractMetadata(filePath);
-                        if (metadata) {
-                            musicInfo.title = metadata.title || musicInfo.title;
-                            musicInfo.artist = metadata.artist || musicInfo.artist;
-                            musicInfo.album = metadata.album || musicInfo.album;
-                            musicInfo.duration = metadata.duration || 0;
-                            musicInfo.bitrate = metadata.bitrate || null;
-                        }
-                        
-                        // 提取封面
-                        const coverPath = await extractCover(filePath, id);
-                        if (coverPath) {
-                            musicInfo.cover = `/covers/${path.basename(coverPath)}`;
-                        }
-                        
-                        // 提取歌词
-                        const lyrics = await extractLyrics(filePath);
-                        if (lyrics) {
-                            musicInfo.lyrics = lyrics;
-                        }
-                    } catch (error) {
-                        console.error(`处理文件 ${file} 时出错:`, error);
-                    }
-                    
-                    await database.addMusic(musicInfo);
-                }
-            }
-            
-            const finalCount = await database.getMusicCount();
-            console.log(`已加载 ${finalCount} 首音乐到数据库`);
-        } else {
-            console.log(`数据库中已有 ${musicCount} 首音乐`);
-        }
-    } catch (error) {
-        console.error('初始化数据库失败:', error);
-    }
-}
 
 // 获取音乐列表
 router.get('/music/list', apiAuthMiddleware, async (req, res) => {
     try {
-        await initDatabase();
-        const musicList = await database.getAllMusic();
+        const musicList = await database.getAllMusicCached();
         res.json({ 
             success: true, 
             music: musicList 
@@ -167,7 +71,6 @@ router.get('/music/list', apiAuthMiddleware, async (req, res) => {
 // 获取音乐统计信息
 router.get('/music/stats', apiAuthMiddleware, async (req, res) => {
     try {
-        await initDatabase();
         const stats = await database.getMusicStats();
         res.json({
             success: true,
@@ -185,7 +88,6 @@ router.get('/music/stats', apiAuthMiddleware, async (req, res) => {
 // 获取音乐播放URL
 router.get('/music/play/:id', apiAuthMiddleware, async (req, res) => {
     try {
-        await initDatabase();
         const id = req.params.id;
         const music = await database.getMusicById(id);
         
@@ -212,7 +114,6 @@ router.get('/music/play/:id', apiAuthMiddleware, async (req, res) => {
 // 获取音乐封面
 router.get('/music/cover/:id', async (req, res) => {
     try {
-        await initDatabase();
         const id = req.params.id;
         
         // 安全检查：防止路径遍历攻击
@@ -261,6 +162,7 @@ router.post('/music/upload', apiAuthMiddleware, upload.single('music'), async (r
             bitrate: null,
             cover: null,
             lyrics: null,
+            file_mtime: Math.floor(Date.now() / 1000),
             uploadTime: new Date()
         };
         
@@ -291,9 +193,15 @@ router.post('/music/upload', apiAuthMiddleware, upload.single('music'), async (r
         }
         
         // 保存到数据库
-        await initDatabase();
         await database.addMusic(musicInfo);
-        
+
+        // 更新缓存
+        database.addFileMeta(musicInfo.filename, {
+            size: musicInfo.size,
+            mtime: musicInfo.file_mtime
+        });
+        database.invalidateMusicListCache();
+
         res.json({ 
             success: true, 
             message: '上传成功',
@@ -311,7 +219,6 @@ router.post('/music/upload', apiAuthMiddleware, upload.single('music'), async (r
 // 删除音乐
 router.delete('/music/:id', apiAuthMiddleware, async (req, res) => {
     try {
-        await initDatabase();
         const id = req.params.id;
         
         // 先获取音乐信息用于删除文件
@@ -339,7 +246,11 @@ router.delete('/music/:id', apiAuthMiddleware, async (req, res) => {
         
         // 从数据库中删除
         await database.deleteMusic(id);
-        
+
+        // 更新缓存
+        database.removeFileMeta(music.filename);
+        database.invalidateMusicListCache();
+
         res.json({ 
             success: true, 
             message: '删除成功' 
@@ -356,7 +267,6 @@ router.delete('/music/:id', apiAuthMiddleware, async (req, res) => {
 // 搜索音乐
 router.get('/music/search', apiAuthMiddleware, async (req, res) => {
     try {
-        await initDatabase();
         const query = req.query.q || '';
         const results = await database.searchMusic(query);
         
@@ -376,7 +286,6 @@ router.get('/music/search', apiAuthMiddleware, async (req, res) => {
 // 重新扫描音乐目录
 router.post('/music/rescan', apiAuthMiddleware, async (req, res) => {
     try {
-        await initDatabase();
         
         // 初始化扫描器（如果尚未初始化）
         if (!musicScanner) {
@@ -406,8 +315,12 @@ router.post('/music/rescan', apiAuthMiddleware, async (req, res) => {
             status: musicScanner.getScanStatus()
         });
         
-        // 在后台继续执行扫描
-        scanPromise.catch(error => {
+        // 在后台继续执行扫描，完成后刷新缓存
+        scanPromise
+            .then(async () => {
+                await database.refreshMusicListCache();
+            })
+            .catch(error => {
             console.error('后台扫描失败:', error);
         });
         
