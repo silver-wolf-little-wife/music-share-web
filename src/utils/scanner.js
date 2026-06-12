@@ -5,8 +5,8 @@ const { extractMetadata, extractCover, extractLyrics, isAudioFile } = require('.
 const logger = require('./logger');
 
 /**
- * 智能音乐文件扫描器
- * 支持增量扫描、文件变更检测和批量处理
+ * 音乐文件全量扫描器
+ * 每次扫描均全量处理所有音频文件
  */
 class MusicScanner {
     constructor(database, musicDir, coverDir) {
@@ -22,11 +22,11 @@ class MusicScanner {
     }
 
     /**
-     * 开始增量扫描
+     * 开始全量扫描
      * @param {Function} progressCallback - 进度回调函数
      * @returns {Promise<Object>} 扫描结果
      */
-    async startIncrementalScan(progressCallback = null) {
+    async startFullScan(progressCallback = null) {
         if (this.isScanning) {
             throw new Error('扫描正在进行中');
         }
@@ -38,8 +38,8 @@ class MusicScanner {
         this.currentScanId = uuidv4();
 
         try {
-            console.log('开始增量扫描音乐目录...');
-            const results = await this.performIncrementalScan();
+            console.log('开始全量扫描音乐目录...');
+            const results = await this.performFullScan();
             this.scanStatus = 'completed';
             this.scanResults = results;
 
@@ -66,56 +66,44 @@ class MusicScanner {
     }
 
     /**
-     * 执行增量扫描
+     * 执行全量扫描
      * @returns {Promise<Object>} 扫描结果
      */
-    async performIncrementalScan() {
+    async performFullScan() {
         const results = {
             added: [],
             updated: [],
-            deleted: [],
+            deletedCount: 0,
             errors: [],
             totalProcessed: 0,
             startTime: new Date()
         };
 
         try {
-            // 1. 获取数据库中现有的音乐记录
-            const existingRecords = await this.database.getAllMusicFilenamesAndMtime();
-            const existingFileMap = new Map(
-                existingRecords.map(record => [record.filename, { id: record.id, mtime: record.file_mtime }])
-            );
-
-            // 2. 扫描文件系统获取所有音频文件
-            const currentFiles = await this.scanDirectory(this.musicDir);
+            // 1. 扫描文件系统获取所有音频文件
+            const allFiles = await this.scanDirectory(this.musicDir);
             this.updateProgress(10);
 
-            // 3. 分析文件变更
-            const changes = this.analyzeChanges(currentFiles, existingFileMap);
-            this.updateProgress(20);
-
-            // 4. 处理已删除的文件
-            if (changes.deleted.length > 0) {
-                await this.processDeletedFiles(changes.deleted, results);
-            }
-            this.updateProgress(30);
-
-            // 5. 处理新增和修改的文件
-            const filesToProcess = [...changes.new, ...changes.modified];
-            if (filesToProcess.length > 0) {
-                await this.processNewAndModifiedFiles(filesToProcess, results);
+            // 2. 全量处理所有文件（每个文件都提取元数据并写入数据库）
+            if (allFiles.length > 0) {
+                await this.processAllFiles(allFiles, results);
             }
             this.updateProgress(90);
 
-            // 6. 完成扫描
+            // 3. 删除数据库中已不存在的文件记录
+            const currentFilenames = allFiles.map(f => f.filename);
+            const deleteResult = await this.database.deleteNonExistentFiles(currentFilenames);
+            results.deletedCount = deleteResult.deletedCount || 0;
+
+            // 4. 完成扫描
             results.endTime = new Date();
             results.duration = results.endTime - results.startTime;
-            results.totalProcessed = results.added.length + results.updated.length + results.deleted.length;
+            results.totalProcessed = results.added.length + results.updated.length + results.deletedCount;
 
-            console.log('增量扫描完成:', {
+            console.log('全量扫描完成:', {
                 新增: results.added.length,
                 更新: results.updated.length,
-                删除: results.deleted.length,
+                删除: results.deletedCount,
                 错误: results.errors.length,
                 耗时: `${results.duration}ms`
             });
@@ -172,89 +160,12 @@ class MusicScanner {
     }
 
     /**
-     * 分析文件变更
-     * @param {Array} currentFiles - 当前文件系统中的文件
-     * @param {Map} existingFileMap - 数据库中现有文件的映射
-     * @returns {Object} 变更分析结果
-     */
-    analyzeChanges(currentFiles, existingFileMap) {
-        const currentFileMap = new Map(
-            currentFiles.map(file => [file.filename, file])
-        );
-
-        const changes = {
-            new: [],
-            modified: [],
-            deleted: [],
-            unchanged: []
-        };
-
-        // 检查当前文件系统中的文件
-        for (const [filename, fileInfo] of currentFileMap) {
-            const existingRecord = existingFileMap.get(filename);
-            
-            if (!existingRecord) {
-                // 新文件
-                changes.new.push(fileInfo);
-            } else if (!existingRecord.mtime || fileInfo.mtime > existingRecord.mtime) {
-                // 文件已修改
-                changes.modified.push(fileInfo);
-            } else {
-                // 文件未变更
-                changes.unchanged.push(fileInfo);
-            }
-        }
-
-        // 检查已删除的文件
-        for (const [filename, record] of existingFileMap) {
-            if (!currentFileMap.has(filename)) {
-                changes.deleted.push({
-                    filename: filename,
-                    id: record.id
-                });
-            }
-        }
-
-        console.log('文件变更分析:', {
-            新增: changes.new.length,
-            修改: changes.modified.length,
-            删除: changes.deleted.length,
-            未变更: changes.unchanged.length
-        });
-
-        return changes;
-    }
-
-    /**
-     * 处理已删除的文件
-     * @param {Array} deletedFiles - 已删除文件列表
-     * @param {Object} results - 扫描结果对象
-     */
-    async processDeletedFiles(deletedFiles, results) {
-        console.log(`处理 ${deletedFiles.length} 个已删除的文件`);
-        
-        const filenames = deletedFiles.map(file => file.filename);
-        
-        try {
-            const deleteResult = await this.database.deleteNonExistentFiles(filenames);
-            results.deleted.push(...deletedFiles);
-        } catch (error) {
-            results.errors.push({
-                type: 'delete_error',
-                message: `删除文件记录失败: ${error.message}`,
-                files: deletedFiles,
-                timestamp: new Date()
-            });
-        }
-    }
-
-    /**
-     * 处理新增和修改的文件
+     * 处理所有文件（全量处理，区分新增和更新）
      * @param {Array} filesToProcess - 需要处理的文件列表
      * @param {Object} results - 扫描结果对象
      */
-    async processNewAndModifiedFiles(filesToProcess, results) {
-        console.log(`处理 ${filesToProcess.length} 个新增和修改的文件`);
+    async processAllFiles(filesToProcess, results) {
+        console.log(`正在全量处理 ${filesToProcess.length} 个音频文件`);
         
         const batchSize = 10; // 每批处理10个文件
         const totalBatches = Math.ceil(filesToProcess.length / batchSize);
@@ -266,9 +177,9 @@ class MusicScanner {
             try {
                 await this.processBatch(batch, results);
                 
-                // 更新进度
-                const baseProgress = 30;
-                const progressRange = 60; // 30% - 90%
+                // 更新进度（10% ~ 90%）
+                const baseProgress = 10;
+                const progressRange = 80;
                 const batchProgress = (batchNumber / totalBatches) * progressRange;
                 this.updateProgress(baseProgress + batchProgress);
                 

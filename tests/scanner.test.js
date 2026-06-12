@@ -56,7 +56,7 @@ describe('Scanner - 错误收集', () => {
             mtime: 1000
         }]);
 
-        const results = await scanner.performIncrementalScan();
+        const results = await scanner.performFullScan();
         expect(results.errors.length).toBeGreaterThan(0);
         const addError = results.errors.find(e =>
             e.type === 'batch_add_error' || e.type === 'batch_error'
@@ -76,7 +76,7 @@ describe('Scanner - 错误收集', () => {
             { filename: 'broken.mp3', fullPath: testMusicDir + '/broken.mp3', mtime: 1000 }
         ]);
 
-        const results = await scanner.performIncrementalScan();
+        const results = await scanner.performFullScan();
         // 数据应正常入库（标题降级为文件名 'broken'）
         expect(results.added.length + results.errors.length).toBeGreaterThanOrEqual(1);
     });
@@ -96,14 +96,14 @@ describe('Scanner - 错误收集', () => {
         expect(files.find(f => f.filename === 'sub.mp3')).toBeDefined();
     });
 
-    test('startIncrementalScan 完成后调用 writeScanErrors 持久化错误', async () => {
+    test('startFullScan 完成后调用 writeScanErrors 持久化错误', async () => {
         const logger = require('../src/utils/logger');
 
         // 设置一个有错误的场景
         const results = {
             added: [],
             updated: [],
-            deleted: [],
+            deletedCount: 0,
             errors: [
                 { type: 'file_error', file: 'corrupt.mp3', message: '解析失败' }
             ],
@@ -113,17 +113,17 @@ describe('Scanner - 错误收集', () => {
             duration: 100
         };
 
-        jest.spyOn(scanner, 'performIncrementalScan').mockResolvedValue(results);
+        jest.spyOn(scanner, 'performFullScan').mockResolvedValue(results);
 
-        await scanner.startIncrementalScan();
+        await scanner.startFullScan();
         expect(logger.writeScanErrors).toHaveBeenCalledWith(results.errors);
     });
 
-    test('startIncrementalScan 顶层异常时写入 scan_error 日志', async () => {
+    test('startFullScan 顶层异常时写入 scan_error 日志', async () => {
         const logger = require('../src/utils/logger');
-        jest.spyOn(scanner, 'performIncrementalScan').mockRejectedValue(new Error('致命错误'));
+        jest.spyOn(scanner, 'performFullScan').mockRejectedValue(new Error('致命错误'));
 
-        await expect(scanner.startIncrementalScan()).rejects.toThrow('致命错误');
+        await expect(scanner.startFullScan()).rejects.toThrow('致命错误');
         expect(logger.writeErrorLog).toHaveBeenCalledWith({
             type: 'scan_error',
             message: '致命错误'
